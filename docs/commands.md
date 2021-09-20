@@ -92,6 +92,9 @@ The following is a complete list of the public interface procs in Wapp:
 
   +  **wapp-reply-code** _CODE_  
      Set the reply-code for the HTTP request.  The default is "200 Ok".
+     If this value is set to ABORT (with no numeric code, just the 5
+     upper-case letters "ABORT") then Wapp will drop the connection without
+     sending any reply at all.
 
   +  **wapp-redirect** _TARGET-URL_  
      Cause an HTTP redirect to _TARGET-URL_.
