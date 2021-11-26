@@ -34,6 +34,10 @@ proc wapp-default {} {
     <p><form method="POST" enctype="multipart/form-data">
     File To Upload: <input type="file" name="file"><br>
     <input type="checkbox" name="showenv" value="1">Show CGI Environment<br>
+    <input type="hidden" name="PARAM1"
+     value="Post parameter with non-lowercase names are suppressed">
+    <input type="hidden" name="param2.value"
+     value="Post parameters with non-lowercase names are suppressed">
     <input type="submit" value="Submit">
     </form></p>
     <p><a href='%html([wapp-param SCRIPT_NAME])/self'>Show the script

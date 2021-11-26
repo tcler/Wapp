@@ -598,12 +598,14 @@ proc wappInt-decode-query-params {} {
         if {[regexp {^Content-Disposition: form-data; (.*?)\r\n\r\n(.*)$} \
              $unit unit hdr content]} {
           if {[regexp {name="(.*)"; filename="(.*)"\r\nContent-Type: (.*?)$}\
-                $hdr hr name filename mimetype]} {
+                $hdr hr name filename mimetype]
+              && [regexp {^[a-z][a-z0-9]*$} $name]} {
             dict set wapp $name.filename \
               [string map [list \\\" \" \\\\ \\] $filename]
             dict set wapp $name.mimetype $mimetype
             dict set wapp $name.content $content
-          } elseif {[regexp {name="(.*)"} $hdr hr name]} {
+          } elseif {[regexp {name="(.*)"} $hdr hr name]
+                    && [regexp {^[a-z][a-z0-9]*$} $name]} {
             dict set wapp $name $content
           }
         }
