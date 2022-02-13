@@ -529,12 +529,12 @@ proc wappInt-parse-header {chan} {
     error "unsupported request method: \"[dict get $W REQUEST_METHOD]\""
   }
   set uri [lindex $req 1]
+  dict set W REQUEST_URI $uri
   set split_uri [split $uri ?]
   set uri0 [lindex $split_uri 0]
   if {![regexp {^/[-.a-z0-9_/]*$} $uri0]} {
     error "invalid request uri: \"$uri0\""
   }
-  dict set W REQUEST_URI $uri0
   dict set W PATH_INFO $uri0
   set uri1 [lindex $split_uri 1]
   dict set W QUERY_STRING $uri1
@@ -663,10 +663,6 @@ proc wappInt-handle-request-unsafe {chan} {
   }
   if {![dict exists $wapp REQUEST_URI]} {
     dict set wapp REQUEST_URI /
-  } elseif {[regsub {\?.*} [dict get $wapp REQUEST_URI] {} newR]} {
-    # Some servers (ex: nginx) append the query parameters to REQUEST_URI.
-    # These need to be stripped off
-    dict set wapp REQUEST_URI $newR
   }
   if {[dict exists $wapp SCRIPT_NAME]} {
     dict append wapp BASE_URL [dict get $wapp SCRIPT_NAME]
@@ -676,6 +672,7 @@ proc wappInt-handle-request-unsafe {chan} {
   if {![dict exists $wapp PATH_INFO]} {
     # If PATH_INFO is missing (ex: nginx) then construct it
     set URI [dict get $wapp REQUEST_URI]
+    regsub {\?.*} $URI {} URI
     set skip [string length [dict get $wapp SCRIPT_NAME]]
     dict set wapp PATH_INFO [string range $URI $skip end]
   }

@@ -200,7 +200,10 @@ The following CGI parameters are available:
   +  **REQUEST\_URI**  
      The URL for the inbound request, without the initial "http://" or
      "https://" and without the HTTP\_HOST.  This variable is the same as
-     the concatenation of $SCRIPT\_NAME and $PATH\_INFO.
+     the concatenation of $SCRIPT\_NAME and $PATH\_INFO if $QUERY\_STRING
+     is blank, or $SCRIPT\NAME/$PATH\_INFO?$QUERY\_STRING if $QUERY\_STRING
+     is non-empty.  $REQUEST\_URI is the second field of the first line of
+     the HTTP request.
 
   +  **SCRIPT\_FILENAME**  
      The full pathname on the server for the Wapp script.  This parameter
@@ -277,16 +280,13 @@ QUERY\_STRING, are standard CGI.  The final four elements are Wapp
 extensions.  The following is the same information show in a diagram:
 
 >
+                                    REQUEST_URI
+                       __________________|_________________
+                      /                                    \
     http://example.com/cgi-bin/script/method/extra/path?q1=5
            \_________/\_____________/\________________/ \__/
                 |            |               |           |
             HTTP_HOST   SCRIPT_NAME      PATH_INFO       `-- QUERY_STRING
-
->
-    http://example.com/cgi-bin/script/method/extra/path?q1=5
-           \_________/\_______________________________/ \__/
-                |                    |                   |
-            HTTP_HOST         REQUEST_URI                `-- QUERY_STRING
 
 >
     http://example.com/cgi-bin/script/method/extra/path?q1=5
