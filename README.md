@@ -9,7 +9,7 @@ with the following advantages:
   *   Resistant to attacks and exploits
   *   Cross-platform &rarr; CGI, SCGI, or a built-in web server
   *   The Wapp framework itself is a single-file TCL script
-  *   Easy to embedded in a larger application, if desired
+  *   Easy to embed in a larger application, if desired
   *   2-clause BSD license
 
 Documentation
@@ -33,3 +33,20 @@ Simple Live Demos
 -----------------
 
   *  <https://wapp.tcl.tk/demo/>
+
+Downloads
+---------
+
+  *   Download just the single
+      [Wapp TCL file](/file/wapp.tcl?mimetype=text/plain), if you already
+      have a TCL environment
+  *   Download a [tarball](/tarball/wapp.tar.gz) or
+      [ZIP Archive](/zip/wapp.zip) of the latest snapshot of this
+      entire repository, or
+  *   Clone the entire repository using the [Fossil](https://fossil-scm.org/)
+      command "fossil clone [](https://wapp.tcl.tk)".
+
+Extended And Enhanced Wapp By Oleg (lego12239)
+----------------------------------------------
+
+  *  <https://github.com/lego12239/wapp>

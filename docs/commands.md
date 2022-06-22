@@ -1,7 +1,7 @@
 Wapp Commands
 =============
 
-Wapp really just a collection of TCL procs.  All procs are in a single file
+Wapp is really just a collection of TCL procs. All procs are in a single file
 named "wapp.tcl".
 
 The procs that form the public interface for Wapp begin with "wapp-".  The
@@ -33,8 +33,8 @@ The following is a complete list of the public interface procs in Wapp:
      The _TEXT_ argument should be enclosed in {...} to prevent 
      accidental substitutions.
      The "wapp-subst" command itself will do all necessary backslash
-     substitutions.  Command and variable substitutions occur within
-     "%html(...)", "%url(...)", "%qp(...)", "%string(...)", and
+     substitutions.  [Command and variable substitutions](./subst.md) occur
+     within "%html(...)", "%url(...)", "%qp(...)", "%string(...)", and
      "%unsafe(...)".  The substitutions are escaped (except in the case of
      "%unsafe(...)") so that the result is safe for inclusion within the
      body of an HTML document, a URL, a query parameter, or a javascript or
@@ -54,8 +54,8 @@ The following is a complete list of the public interface procs in Wapp:
 
   +  <a name='wapp-trim'></a>**wapp-trim** _TEXT_  
      Just like wapp-subst, this routine appends _TEXT_ to the web page
-     under construction, using the %html, %url, %qp, %string, and %unsafe
-     substitutions.  The difference is that this routine also removes
+     under construction. The same [substitution functions](./subst.md)
+     are supported.  The difference is that this routine also removes
      surplus whitespace from the left margin, so that if the _TEXT_
      argument is indented in the source script, it will appear at the
      left margin in the generated output.
@@ -92,6 +92,9 @@ The following is a complete list of the public interface procs in Wapp:
 
   +  **wapp-reply-code** _CODE_  
      Set the reply-code for the HTTP request.  The default is "200 Ok".
+     If this value is set to ABORT (with no numeric code, just the 5
+     upper-case letters "ABORT") then Wapp will drop the connection without
+     sending any reply at all.
 
   +  **wapp-redirect** _TARGET-URL_  
      Cause an HTTP redirect to _TARGET-URL_.

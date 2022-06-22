@@ -1,8 +1,9 @@
 #!/usr/bin/make
 
-CC = gcc -Os -static
-TCLLIB1 = 
-TCLLIB2 = /home/drh/tcl/lib/libtcl8.7.a -lm -lz -lpthread -ldl
+CFLAGS = -Os -static
+CC = gcc $(CFLAGS)
+OPTS = -DSQLITE_ENABLE_DESERIALIZE
+TCLLIB = /home/drh/tcl/lib/libtcl8.7.a -lm -lz -lpthread -ldl
 TCLINC = /home/drh/tcl/include
 TCLSH = tclsh
 
@@ -21,7 +22,7 @@ TCLLIB1 = /home/drh/tcl/lib/tcltls.a -lssl -lcrypto
 all: wapptclsh
 
 wapptclsh: wapptclsh.c
-	$(CC) -I. -I$(TCLINC) -o $@ wapptclsh.c $(TCLLIB1) $(TCLLIB2)
+	$(CC) -I. -I$(TCLINC) -o $@ $(OPTS) wapptclsh.c $(TCLLIB)
 
 wapptclsh.c:	wapptclsh.c.in wapp.tcl wapptclsh.tcl tclsqlite3.c mkccode.tcl
 	$(TCLSH) mkccode.tcl wapptclsh.c.in >$@
