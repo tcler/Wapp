@@ -128,12 +128,12 @@ in the "env.tcl" example above the "wapp-allow-xorigin-params" interface
 is used so that you can manually extend the URL to add new query parameters.
 
 If query parameters can have side effects, then you should omit the
-wapp-allow-xorigin-params call.  Only invoke wapp-allow-xorigin-params
-for web pages that only query information.  Do not invoke
-wapp-allow-xorigin-params on pages where the parameters can be used
-to change server-side state.
+wapp-allow-xorigin-params call.  The wapp-allow-xorigin-params command
+is safe for read-only web pages.  Do not invoke wapp-allow-xorigin-params
+on pages where the parameters can be used to change server state.
 
-3.0 CGI Parameter Details
+<a name='cgidetail'></a>
+3.0 CGI Parameter Details [(Quick reference)](quickref.md#cgiparams)
 -------------------------
 
 The CGI parameters in Wapp describe the HTTP request that is to be answered
@@ -192,7 +192,7 @@ The following CGI parameters are available:
      The IP address from which the HTTP request originated.
 
   +  **REMOTE\_PORT**  
-     The TCP port from which teh HTTP request originated.
+     The TCP port from which the HTTP request originated.
 
   +  **REQUEST\_METHOD**  
      "GET" or "HEAD" or "POST"
@@ -247,6 +247,10 @@ The following are supplemental environment parameters are added by Wapp:
      The URL for the current page, stripped of query parameter. This is
      useful for filling in the action= attribute of forms.
 
+  +  **SERVER\_ADDR**  
+     In SCGI mode only, this variable is the address of the webserver from which
+     the SCGI request originates.
+
   +  **WAPP\_MODE**  
      This parameter has a value of "cgi", "local", "scgi", or "server" depending
      on how Wapp was launched.
@@ -270,11 +274,36 @@ the following CGI environment values are generated:
 
 The first five elements of the example above, HTTP\_HOST through
 QUERY\_STRING, are standard CGI.  The final four elements are Wapp
-extensions.
+extensions.  The following is the same information show in a diagram:
+
+>
+    http://example.com/cgi-bin/script/method/extra/path?q1=5
+           \_________/\_____________/\________________/ \__/
+                |            |               |           |
+            HTTP_HOST   SCRIPT_NAME      PATH_INFO       `-- QUERY_STRING
+
+>
+    http://example.com/cgi-bin/script/method/extra/path?q1=5
+           \_________/\_______________________________/ \__/
+                |                    |                   |
+            HTTP_HOST         REQUEST_URI                `-- QUERY_STRING
+
+>
+    http://example.com/cgi-bin/script/method/extra/path?q1=5
+    \_______________________________/ \____/ \________/
+                    |                    |        | 
+                BASE_URL           PATH_HEAD   PATH_TAIL
+
+
+>
+    http://example.com/cgi-bin/script/method/extra/path?q1=5
+    \______________________________________/ \________/
+                       |                          |
+                    SELF_URL                   PATH_TAIL
 
 ### 3.2 Undefined Parameters When Using SCGI on Nginx
 
-Some of the CGI parameters are undefined by default when using CGI mode
+Some of the CGI parameters are undefined by default when using SCGI mode
 with Nginx.  If these CGI parameters are needed by the application, then
 values must be assigned in the Nginx configuration file.  For example:
 

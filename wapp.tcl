@@ -73,31 +73,41 @@ proc wapp-unsafe {txt} {
 # In addition to the substitutions above, the text also does backslash
 # escapes.
 #
-proc wapp-subst {txt} {
-  global wapp
-  set txt [subst -novar -nocom $txt]
-  while {[regexp {^(.*?)%(html|url|qp|string|unsafe)(|%)\((.+?)\)\3(.*)$} \
-          $txt all before verb m1 arg after]} {
-    set arg [uplevel 1 [list subst $arg]]
-    dict append wapp .reply $before[wappInt-enc-$verb $arg]
-    set txt $after
-  }
-  dict append wapp .reply $txt
-}
-
-# Works like wapp-subst, but also removes whitespace from the beginning
-# of lines.
+# The wapp-trim proc works the same as wapp-subst except that it also removes
+# whitespace from the left margin, so that the generated HTML/CSS/Javascript
+# does not appear to be indented when delivered to the client web browser.
 #
-proc wapp-trim {txt} {
-  global wapp
-  regsub -all {\n\s+} [subst -nocom -novar [string trim $txt]] \n txt
-  while {[regexp {^(.*?)%(html|url|qp|string|unsafe)(|%)\((.+?)\)\3(.*)$} \
-          $txt all before verb m1 arg after]} {
-    set arg [uplevel 1 [list subst $arg]]
-    dict append wapp .reply $before[wappInt-enc-$verb $arg]
-    set txt $after
+if {$tcl_version>=8.7} {
+  proc wapp-subst {txt} {
+    global wapp
+    regsub -all -command \
+       {%(html|url|qp|string|unsafe){1,1}?(|%)\((.+)\)\2} $txt wappInt-enc txt
+    dict append wapp .reply [subst -novariables -nocommand $txt]
   }
-  dict append wapp .reply $txt
+  proc wapp-trim {txt} {
+    global wapp
+    regsub -all {\n\s+} [string trim $txt] \n txt
+    regsub -all -command \
+       {%(html|url|qp|string|unsafe){1,1}?(|%)\((.+)\)\2} $txt wappInt-enc txt
+    dict append wapp .reply [subst -novariables -nocommand $txt]
+  }
+  proc wappInt-enc {all mode nu1 txt} {
+    return [uplevel 2 "wappInt-enc-$mode \"$txt\""]
+  }
+} else {
+  proc wapp-subst {txt} {
+    global wapp
+    regsub -all {%(html|url|qp|string|unsafe){1,1}?(|%)\((.+)\)\2} $txt \
+           {[wappInt-enc-\1 "\3"]} txt
+    dict append wapp .reply [uplevel 1 [list subst -novariables $txt]]
+  }
+  proc wapp-trim {txt} {
+    global wapp
+    regsub -all {\n\s+} [string trim $txt] \n txt
+    regsub -all {%(html|url|qp|string|unsafe){1,1}?(|%)\((.+)\)\2} $txt \
+           {[wappInt-enc-\1 "\3"]} txt
+    dict append wapp .reply [uplevel 1 [list subst -novariables $txt]]
+  }
 }
 
 # There must be a wappInt-enc-NAME routine for each possible substitution
@@ -127,25 +137,32 @@ proc wappInt-enc-unsafe {txt} {
   return $txt
 }
 proc wappInt-enc-url {s} {
-  if {[regsub -all {[^-{}@~?=#_.:/a-zA-Z0-9]} $s {[wappInt-%HHchar {&}]} s]} {
+  if {[regsub -all {[^-{}\\@~?=#_.:/a-zA-Z0-9]} $s {[wappInt-%HHchar {&}]} s]} {
     set s [subst -novar -noback $s]
   }
-  if {[regsub -all {[{}]} $s {[wappInt-%HHchar \\&]} s]} {
+  if {[regsub -all {[\\{}]} $s {[wappInt-%HHchar \\&]} s]} {
     set s [subst -novar -noback $s]
   }
   return $s
 }
 proc wappInt-enc-qp {s} {
-  if {[regsub -all {[^-{}_.a-zA-Z0-9]} $s {[wappInt-%HHchar {&}]} s]} {
+  if {[regsub -all {[^-{}\\_.a-zA-Z0-9]} $s {[wappInt-%HHchar {&}]} s]} {
     set s [subst -novar -noback $s]
   }
-  if {[regsub -all {[{}]} $s {[wappInt-%HHchar \\&]} s]} {
+  if {[regsub -all {[\\{}]} $s {[wappInt-%HHchar \\&]} s]} {
     set s [subst -novar -noback $s]
   }
   return $s
 }
 proc wappInt-enc-string {s} {
-  return [string map {\\ \\\\ \" \\\" ' \\' < \\u003c} $s]
+  return [string map {\\ \\\\ \" \\\" ' \\' < \\u003c \n \\n \r \\r
+  	     \f \\f \t \\t \x01 \\u0001 \x02 \\u0002 \x03 \\u0003
+  	     \x04 \\u0004 \x05 \\u0005 \x06 \\u0006 \x07 \\u0007
+  	     \x0b \\u000b \x0e \\u000e \x0f \\u000f \x10 \\u0010
+  	     \x11 \\u0011 \x12 \\u0012 \x13 \\u0013 \x14 \\u0014
+  	     \x15 \\u0015 \x16 \\u0016 \x17 \\u0017 \x18 \\u0018
+  	     \x19 \\u0019 \x1a \\u001a \x1b \\u001b \x1c \\u001c
+  	     \x1d \\u001d \x1e \\u001e \x1f \\u001f} $s]
 }
 
 # This is a helper routine for wappInt-enc-url and wappInt-enc-qp.  It returns
@@ -314,7 +331,7 @@ proc wapp-content-security-policy {val} {
 #
 proc wapp-safety-check {} {
   set res {}
-  foreach p [info procs] {
+  foreach p [info command] {
     set ln 0
     foreach x [split [info body $p] \n] {
       incr ln
@@ -357,17 +374,22 @@ proc wappInt-trace {} {}
 #    port            Listen on this TCP port.  0 means to select a port
 #                    that is not currently in use
 #
-#    wappmode        One of "scgi", "server", or "local".
+#    wappmode        One of "scgi", "remote-scgi", "server", or "local".
 #
-proc wappInt-start-listener {port wappmode} {
-  if {$wappmode=="scgi"} {
+#    fromip          If not {}, then reject all requests from IP addresses
+#                    other than $fromip
+#
+proc wappInt-start-listener {port wappmode fromip} {
+  if {[string match *scgi $wappmode]} {
     set type SCGI
-    set server [list wappInt-new-connection wappInt-scgi-readable $wappmode]
+    set server [list wappInt-new-connection \
+                wappInt-scgi-readable $wappmode $fromip]
   } else {
     set type HTTP
-    set server [list wappInt-new-connection wappInt-http-readable $wappmode]
+    set server [list wappInt-new-connection \
+                wappInt-http-readable $wappmode $fromip]
   }
-  if {$wappmode=="local"} {
+  if {$wappmode=="local" || $wappmode=="scgi"} {
     set x [socket -server $server -myaddr 127.0.0.1 $port]
   } else {
     set x [socket -server $server $port]
@@ -376,6 +398,8 @@ proc wappInt-start-listener {port wappmode} {
   set port [lindex $coninfo 2]
   if {$wappmode=="local"} {
     wappInt-start-browser http://127.0.0.1:$port/
+  } elseif {$fromip!=""} {
+    puts "Listening for $type requests on TCP port $port from IP $fromip"
   } else {
     puts "Listening for $type requests on TCP port $port"
   }
@@ -398,10 +422,15 @@ proc wappInt-start-browser {url} {
 # arguments are added by the socket command.
 #
 # Arrange to invoke $callback when content is available on the new socket.
-# The $callback will process inbound HTTP or SCGI content.
+# The $callback will process inbound HTTP or SCGI content.  Reject the
+# request if $fromip is not an empty string and does not match $ip.
 #
-proc wappInt-new-connection {callback wappmode chan ip port} {
+proc wappInt-new-connection {callback wappmode fromip chan ip port} {
   upvar #0 wappInt-$chan W
+  if {$fromip!="" && ![string match $fromip $ip]} {
+    close $chan
+    return
+  }
   set W [dict create REMOTE_ADDR $ip REMOTE_PORT $port WAPP_MODE $wappmode \
          .header {}]
   fconfigure $chan -blocking 0 -translation binary
@@ -447,7 +476,11 @@ proc wappInt-http-readable-unsafe {chan} {
     } elseif {$n==0} {
       # We have reached the blank line that terminates the header.
       global argv0
-      set a0 [file normalize $argv0]
+      if {[info exists ::argv0]} {
+        set a0 [file normalize $argv0]
+      } else {
+        set a0 /
+      }
       dict set W SCRIPT_FILENAME $a0
       dict set W DOCUMENT_ROOT [file dir $a0]
       if {[wappInt-parse-header $chan]} {
@@ -464,7 +497,7 @@ proc wappInt-http-readable-unsafe {chan} {
       } else {
         # There is no query content, so handle the request immediately
         set wapp $W
-        wappInt-handle-request $chan 0
+        wappInt-handle-request $chan
       }
     }
   } else {
@@ -476,7 +509,7 @@ proc wappInt-http-readable-unsafe {chan} {
     if {[dict get $W .toread]<=0} {
       # Handle the request as soon as all the query content is received
       set wapp $W
-      wappInt-handle-request $chan 0
+      wappInt-handle-request $chan
     }
   }
 }
@@ -582,10 +615,35 @@ proc wappInt-decode-query-params {} {
 # Invoke application-supplied methods to generate a reply to
 # a single HTTP request.
 #
-# This routine always runs within [catch], so handle exceptions by
-# invoking [error].
+# This routine uses the global variable ::wapp and so must not be nested.
+# It must run to completion before the next instance runs.  If a recursive
+# instances of this routine starts while another is running, the the
+# recursive instance is added to a queue to be invoked after the current
+# instance finishes.  Yes, this means that WAPP IS SINGLE THREADED.  Only
+# a single page rendering instance my be running at a time.  There can
+# be multiple HTTP requests inbound at once, but only one my be processed
+# at a time once the request is full read and parsed.
 #
-proc wappInt-handle-request {chan useCgi} {
+set wappIntPending {}
+set wappIntLock 0
+proc wappInt-handle-request {chan} {
+  global wappIntPending wappIntLock
+  fileevent $chan readable {}
+  if {$wappIntLock} {
+    # Another instance of request is already running, so defer this one
+    lappend wappIntPending [list wappInt-handle-request $chan]
+    return
+  }
+  set wappIntLock 1
+  catch [list wappInt-handle-request-unsafe $chan]
+  set wappIntLock 0
+  if {[llength $wappIntPending]>0} {
+    # If there are deferred requests, then launch the oldest one
+    after idle [lindex $wappIntPending 0]
+    set wappIntPending [lrange $wappIntPending 1 end]
+  }
+}
+proc wappInt-handle-request-unsafe {chan} {
   global wapp
   dict set wapp .reply {}
   dict set wapp .mimetype {text/html; charset=utf-8}
@@ -662,7 +720,7 @@ proc wappInt-handle-request {chan useCgi} {
   wappInt-trace
   set mname [dict get $wapp PATH_HEAD]
   if {[catch {
-    if {$mname!="" && [llength [info proc wapp-page-$mname]]>0} {
+    if {$mname!="" && [llength [info command wapp-page-$mname]]>0} {
       wapp-page-$mname
     } else {
       wapp-default
@@ -680,13 +738,20 @@ proc wappInt-handle-request {chan useCgi} {
     }
     dict unset wapp .new-cookies
   }
+  wapp-before-reply-hook
 
   # Transmit the HTTP reply
   #
-  if {$chan=="stdout"} {
-    puts $chan "Status: [dict get $wapp .reply-code]\r"
+  set rc [dict get $wapp .reply-code]
+  if {$rc=="ABORT"} {
+    # If the page handler invokes "wapp-reply-code ABORT" then close the
+    # TCP/IP connection without sending any reply
+    wappInt-close-channel $chan
+    return
+  } elseif {$chan=="stdout"} {
+    puts $chan "Status: $rc\r"
   } else {
-    puts $chan "HTTP/1.1 [dict get $wapp .reply-code]\r"
+    puts $chan "HTTP/1.1 $rc\r"
     puts $chan "Server: wapp\r"
     puts $chan "Connection: close\r"
   }
@@ -737,36 +802,20 @@ proc wappInt-handle-request {chan useCgi} {
 #
 proc wapp-before-dispatch-hook {} {return}
 
+# This routine runs after the request-handler dispatch and just
+# before the reply is generated.  The default implementation is
+# a no-op, but applications can override to do validation and security
+# checks on the reply, such as verifying that no sensitive information
+# such as an API key or password is accidentally included in the
+# reply text.
+#
+proc wapp-before-reply-hook {} {return}
+
 # Process a single CGI request
 #
 proc wappInt-handle-cgi-request {} {
   global wapp env
-  foreach key {
-    CONTENT_LENGTH
-    CONTENT_TYPE
-    DOCUMENT_ROOT
-    HTTP_ACCEPT_ENCODING
-    HTTP_COOKIE
-    HTTP_HOST
-    HTTP_REFERER
-    HTTP_USER_AGENT
-    HTTPS
-    PATH_INFO
-    QUERY_STRING
-    REMOTE_ADDR
-    REQUEST_METHOD
-    REQUEST_URI
-    REMOTE_USER
-    SCRIPT_FILENAME
-    SCRIPT_NAME
-    SERVER_NAME
-    SERVER_PORT
-    SERVER_PROTOCOL
-  } {
-    if {[info exists env($key)]} {
-      dict set wapp $key $env($key)
-    }
-  }
+  foreach key [array names env {[A-Z]*}] {dict set wapp $key $env($key)}
   set len 0
   if {[dict exists $wapp CONTENT_LENGTH]} {
     set len [dict get $wapp CONTENT_LENGTH]
@@ -777,7 +826,7 @@ proc wappInt-handle-cgi-request {} {
   }
   dict set wapp WAPP_MODE cgi
   fconfigure stdout -translation binary
-  wappInt-handle-request stdout 1
+  wappInt-handle-request-unsafe stdout
 }
 
 # Process new text received on an inbound SCGI request
@@ -797,6 +846,7 @@ proc wappInt-scgi-readable-unsafe {chan} {
     # An SGI header is short.  This implementation assumes the entire
     # header is available all at once.
     #
+    dict set W .remove_addr [dict get $W REMOTE_ADDR]
     set req [read $chan 15]
     set n [string length $req]
     scan $req %d:%s len hdr
@@ -815,8 +865,9 @@ proc wappInt-scgi-readable-unsafe {chan} {
       dict set W .toread $len
     } else {
       # There is no query content, so handle the request immediately
+      dict set W SERVER_ADDR [dict get $W .remove_addr]
       set wapp $W
-      wappInt-handle-request $chan 0
+      wappInt-handle-request $chan
     }
   } else {
     # If .toread is set, that means we are reading the query content.
@@ -826,8 +877,9 @@ proc wappInt-scgi-readable-unsafe {chan} {
     dict set W .toread [expr {[dict get $W .toread]-[string length $got]}]
     if {[dict get $W .toread]<=0} {
       # Handle the request as soon as all the query content is received
+      dict set W SERVER_ADDR [dict get $W .remove_addr]
       set wapp $W
-      wappInt-handle-request $chan 0
+      wappInt-handle-request $chan
     }
   }
 }
@@ -839,7 +891,9 @@ proc wappInt-scgi-readable-unsafe {chan} {
 #
 #    -local $PORT          Listen for HTTP requests on 127.0.0.1:$PORT
 #
-#    -scgi $PORT           Listen for SCGI requests on TCP port $PORT
+#    -scgi $PORT           Listen for SCGI requests on 127.0.0.1:$PORT
+#
+#    -remote-scgi $PORT    Listen for SCGI requests on TCP port $PORT
 #
 #    -cgi                  Handle a single CGI request
 #
@@ -850,6 +904,10 @@ proc wappInt-scgi-readable-unsafe {chan} {
 # on that TCP port.
 #
 # Additional options:
+#
+#    -fromip GLOB         Reject any incoming request where the remote
+#                         IP address does not match the GLOB pattern.  This
+#                         value defaults to '127.0.0.1' for -local and -scgi.
 #
 #    -nowait              Do not wait in the event loop.  Return immediately
 #                         after all event handlers are established.
@@ -868,6 +926,7 @@ proc wapp-start {arglist} {
   set mode auto
   set port 0
   set nowait 0
+  set fromip {}
   set n [llength $arglist]
   for {set i 0} {$i<$n} {incr i} {
     set term [lindex $arglist $i]
@@ -881,15 +940,26 @@ proc wapp-start {arglist} {
       -local {
         incr i;
         set mode "local"
+        set fromip 127.0.0.1
         set port [lindex $arglist $i]
       }
       -scgi {
         incr i;
         set mode "scgi"
+        set fromip 127.0.0.1
+        set port [lindex $arglist $i]
+      }
+      -remote-scgi {
+        incr i;
+        set mode "remote-scgi"
         set port [lindex $arglist $i]
       }
       -cgi {
         set mode "cgi"
+      }
+      -fromip {
+        incr i
+        set fromip [lindex $arglist $i]
       }
       -nowait {
         set nowait 1
@@ -922,23 +992,21 @@ proc wapp-start {arglist} {
       }
     }
   }
-  if {($mode=="auto"
-       && [info exists env(GATEWAY_INTERFACE)]
-       && [string match CGI/1.* $env(GATEWAY_INTERFACE)])
-    || $mode=="cgi"
-  } {
+  if {$mode=="auto"} {
+    if {[info exists env(GATEWAY_INTERFACE)]
+        && [string match CGI/1.* $env(GATEWAY_INTERFACE)]} {
+      set mode cgi
+    } else {
+      set mode local
+    }
+  }
+  if {$mode=="cgi"} {
     wappInt-handle-cgi-request
-    return
-  }
-  if {$mode=="scgi"} {
-    wappInt-start-listener $port scgi
-  } elseif {$mode=="server"} {
-    wappInt-start-listener $port server
   } else {
-    wappInt-start-listener $port local
-  }
-  if {!$nowait} {
-    vwait ::forever
+    wappInt-start-listener $port $mode $fromip
+    if {!$nowait} {
+      vwait ::forever
+    }
   }
 }
 
